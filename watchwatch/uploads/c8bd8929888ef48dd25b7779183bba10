@@ -1,0 +1,966 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SecureView - Security Camera Viewer</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        :root {
+            --primary: #1a56db;
+            --primary-dark: #1e40af;
+            --secondary: #64748b;
+            --success: #059669;
+            --danger: #dc2626;
+            --warning: #d97706;
+            --info: #0891b2;
+            --light: #f8fafc;
+            --dark: #1e293b;
+            --dark-bg: #0f172a;
+            --border: #334155;
+            --shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.3);
+            --glow: 0 0 20px rgba(59, 130, 246, 0.3);
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: var(--dark-bg);
+            color: var(--light);
+            min-height: 100vh;
+            overflow-x: hidden;
+        }
+
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+
+        .header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 20px 0;
+            margin-bottom: 30px;
+            border-bottom: 2px solid var(--border);
+        }
+
+        .logo {
+            display: flex;
+            align-items: center;
+            gap: 15px;
+        }
+
+        .logo-icon {
+            font-size: 2.5rem;
+            color: var(--primary);
+            background: linear-gradient(135deg, #3b82f6, #1d4ed8);
+            padding: 10px;
+            border-radius: 12px;
+        }
+
+        .logo-text h1 {
+            font-size: 2rem;
+            font-weight: 700;
+            background: linear-gradient(135deg, #e2e8f0, #94a3b8);
+            -background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        .logo-text p {
+            font-size: 0.9rem;
+            color: var(--secondary);
+        }
+
+        .connection-status {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding: 10px 20px;
+            background: rgba(30, 41, 59, 0.8);
+            border-radius: 20px;
+        }
+
+        .status-dot {
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            background: var(--success);
+            box-shadow: 0 0 10px var(--success);
+        }
+
+        .main-content {
+            display: grid;
+            grid-template-columns: 2fr 1fr;
+            gap: 25px;
+            margin-bottom: 30px;
+        }
+
+        @media (max-width: 1024px) {
+            .main-content {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        .player-section {
+            background: rgba(15, 23, 42, 0.8);
+            border-radius: 16px;
+            padding: 25px;
+            border: 1px solid var(--border);
+            box-shadow: var(--shadow);
+        }
+
+        .player-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+            padding-bottom: 15px;
+            border-bottom: 1px solid var(--border);
+        }
+
+        .player-title {
+            font-size: 1.4rem;
+            font-weight: 600;
+            color: var(--light);
+        }
+
+        .video-player {
+            position: relative;
+            width: 100%;
+            height: 500px;
+            border-radius: 12px;
+            overflow: hidden;
+            background: #000;
+            margin-bottom: 20px;
+        }
+
+        #mainVideo {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            border-radius: 12px;
+        }
+
+        .player-controls {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+            gap: 15px;
+            margin-bottom: 20px;
+        }
+
+        .btn {
+            padding: 14px 20px;
+            border: none;
+            border-radius: 10px;
+            font-size: 1rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 10px;
+            background: var(--secondary);
+            color: white;
+        }
+
+        .btn:hover {
+            transform: translateY(-2px);
+            box-shadow: var(--shadow);
+        }
+
+        .btn-primary {
+            background: var(--primary);
+        }
+
+        .btn-primary:hover {
+            background: var(--primary-dark);
+        }
+
+        .btn-success {
+            background: var(--success);
+        }
+
+        .btn-success:hover {
+            background: #047857;
+        }
+
+        .btn-danger {
+            background: var(--danger);
+        }
+
+        .btn-danger:hover {
+            background: #b91c1c;
+        }
+
+        .btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+            transform: none !important;
+        }
+
+        .video-info {
+            background: rgba(30, 41, 59, 0.6);
+            padding: 20px;
+            border-radius: 12px;
+            margin-bottom: 20px;
+        }
+
+        .info-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 15px;
+        }
+
+        .info-item {
+            display: flex;
+            flex-direction: column;
+            gap: 5px;
+        }
+
+        .info-label {
+            font-size: 0.9rem;
+            color: var(--secondary);
+            font-weight: 600;
+        }
+
+        .info-value {
+            color: var(--light);
+            font-family: 'Courier New', monospace;
+        }
+
+        .sidebar {
+            display: flex;
+            flex-direction: column;
+            gap: 25px;
+        }
+
+        .card {
+            background: rgba(15, 23, 42, 0.8);
+            border-radius: 16px;
+            padding: 20px;
+            border: 1px solid var(--border);
+            box-shadow: var(--shadow);
+        }
+
+        .card-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 15px;
+            padding-bottom: 10px;
+            border-bottom: 1px solid var(--border);
+        }
+
+        .card-title {
+            font-size: 1.2rem;
+            font-weight: 600;
+            color: var(--light);
+        }
+
+        .recordings-list {
+            max-height: 300px;
+            overflow-y: auto;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+
+        .recording-item {
+            padding: 15px;
+            background: rgba(30, 41, 59, 0.6);
+            border-radius: 10px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            border: 1px solid transparent;
+        }
+
+        .recording-item:hover {
+            background: rgba(30, 41, 59, 0.8);
+            border-color: var(--primary);
+            transform: translateX(5px);
+        }
+
+        .recording-item.active {
+            background: rgba(30, 41, 59, 0.9);
+            border-color: var(--primary);
+            box-shadow: var(--glow);
+        }
+
+        .recording-time {
+            font-size: 0.9rem;
+            color: var(--light);
+            font-weight: 600;
+            margin-bottom: 5px;
+        }
+
+        .recording-duration {
+            font-size: 0.8rem;
+            color: var(--secondary);
+        }
+
+        .live-view-section {
+            text-align: center;
+        }
+
+        .live-status {
+            font-size: 1.1rem;
+            font-weight: 600;
+            margin-bottom: 15px;
+            padding: 10px;
+            border-radius: 8px;
+            background: rgba(30, 41, 59, 0.6);
+        }
+
+        .live-active {
+            color: var(--success);
+            animation: pulse 2s infinite;
+        }
+
+        .search-section {
+            margin-top: 20px;
+        }
+
+        .search-input {
+            width: 100%;
+            padding: 12px 15px;
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            background: rgba(30, 41, 59, 0.6);
+            color: var(--light);
+            font-size: 1rem;
+            margin-bottom: 15px;
+        }
+
+        .search-input:focus {
+            outline: none;
+            border-color: var(--primary);
+            box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.2);
+        }
+
+        .filter-buttons {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 10px;
+        }
+
+        .filter-btn {
+            padding: 8px 12px;
+            border: 1px solid var(--border);
+            border-radius: 6px;
+            background: rgba(30, 41, 59, 0.6);
+            color: var(--secondary);
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+
+        .filter-btn.active {
+            background: var(--primary);
+            color: white;
+            border-color: var(--primary);
+        }
+
+        .filter-btn:hover {
+            background: var(--primary);
+            color: white;
+        }
+
+        .thumbnail-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+            gap: 15px;
+            margin-top: 20px;
+            max-height: 400px;
+            overflow-y: auto;
+        }
+
+        .thumbnail-item {
+            position: relative;
+            border-radius: 8px;
+            overflow: hidden;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+
+        .thumbnail-item:hover {
+            transform: scale(1.05);
+            box-shadow: var(--shadow);
+        }
+
+        .thumbnail-img {
+            width: 100%;
+            height: 100px;
+            object-fit: cover;
+            background: linear-gradient(45deg, #334155, #475569);
+        }
+
+        .thumbnail-time {
+            position: absolute;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            background: rgba(0, 0, 0, 0.7);
+            padding: 5px;
+            font-size: 0.8rem;
+            color: var(--light);
+        }
+
+        .notification {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            padding: 15px 20px;
+            border-radius: 8px;
+            background: var(--success);
+            color: white;
+            box-shadow: var(--shadow);
+            transform: translateX(100%);
+            transition: transform 0.3s ease;
+            z-index: 1000;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .notification.show {
+            transform: translateX(0);
+        }
+
+        .notification.error {
+            background: var(--danger);
+        }
+
+        .empty-state {
+            text-align: center;
+            padding: 40px 20px;
+            color: var(--secondary);
+        }
+
+        .empty-icon {
+            font-size: 3rem;
+            margin-bottom: 15px;
+            color: var(--secondary);
+        }
+
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.5; }
+        }
+
+        .footer {
+            text-align: center;
+            padding: 30px 0;
+            color: var(--secondary);
+            font-size: 0.9rem;
+            border-top: 1px solid var(--border);
+        }
+
+        /* Responsive adjustments */
+        @media (max-width: 768px) {
+            .header {
+                flex-direction: column;
+                gap: 15px;
+                text-align: center;
+            }
+            
+            .video-player {
+                height: 300px;
+            }
+            
+            .player-controls {
+                grid-template-columns: 1fr 1fr;
+            }
+            
+            .filter-buttons {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        @media (max-width: 480px) {
+            .player-controls {
+                grid-template-columns: 1fr;
+            }
+            
+            .info-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        /* Custom scrollbar */
+        ::-webkit-scrollbar {
+            width: 8px;
+        }
+
+        ::-webkit-scrollbar-track {
+            background: rgba(30, 41, 59, 0.6);
+            border-radius: 4px;
+        }
+
+        ::-webkit-scrollbar-thumb {
+            background: var(--primary);
+            border-radius: 4px;
+        }
+
+        ::-webkit-scrollbar-thumb:hover {
+            background: var(--primary-dark);
+        }
+
+        /* Playback controls */
+        .playback-controls {
+            display: flex;
+            align-items: center;
+            gap: 15px;
+            margin-top: 15px;
+        }
+
+        .playback-btn {
+            padding: 8px 15px;
+            border: none;
+            border-radius: 6px;
+            background: var(--secondary);
+            color: white;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+
+        .playback-btn:hover {
+            background: var(--primary);
+        }
+
+        .time-display {
+            font-family: 'Courier New', monospace;
+            color: var(--light);
+            font-size: 0.9rem;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <div class="logo">
+                <div class="logo-icon">
+                    <i class="fas fa-eye"></i>
+                </div>
+                <div class="logo-text">
+                    <h1>SecureView</h1>
+                    <p>Security Camera Viewer Application</p>
+                </div>
+            </div>
+            
+            <div class="connection-status">
+                <div class="status-dot"></div>
+                <span>Connected to SecureCam Pro</span>
+            </div>
+        </div>
+
+        <div class="main-content">
+            <div class="player-section">
+                <div class="player-header">
+                    <h3 class="player-title"><i class="fas fa-play-circle"></i> Video Player</h3>
+                    <div class="live-status" id="liveStatus">Playback Mode</div>
+                </div>
+                
+                <div class="video-player">
+                    <video id="mainVideo" controls>
+                        <source src="" type="video/webm">
+                        Your browser does not support the video tag.
+                    </video>
+                </div>
+                
+                <div class="player-controls">
+                    <button class="btn btn-primary" onclick="playVideo()" id="playBtn">
+                        <i class="fas fa-play"></i> Play
+                    </button>
+                    <button class="btn btn-danger" onclick="pauseVideo()" id="pauseBtn">
+                        <i class="fas fa-pause"></i> Pause
+                    </button>
+                    <button class="btn" onclick="toggleFullscreen()">
+                        <i class="fas fa-expand"></i> Fullscreen
+                    </button>
+                    <button class="btn btn-success" onclick="downloadVideo()">
+                        <i class="fas fa-download"></i> Download
+                    </button>
+                    <button class="btn" onclick="connectLive()" id="liveBtn">
+                        <i class="fas fa-broadcast-tower"></i> Live View
+                    </button>
+                </div>
+
+                <div class="playback-controls">
+                    <button class="playback-btn" onclick="seekBackward()">
+                        <i class="fas fa-backward"></i> -10s
+                    </button>
+                    <button class="playback-btn" onclick="seekForward()">
+                        <i class="fas fa-forward"></i> +10s
+                    </button>
+                    <span class="time-display" id="timeDisplay">00:00 / 00:00</span>
+                </div>
+
+                <div class="video-info">
+                    <h4>Video Information</h4>
+                    <div class="info-grid">
+                        <div class="info-item">
+                            <span class="info-label">Current File:</span>
+                            <span class="info-value" id="currentFile">No file selected</span>
+                        </div>
+                        <div class="info-item">
+                            <span class="info-label">Duration:</span>
+                            <span class="info-value" id="videoDuration">--:--</span>
+                        </div>
+                        <div class="info-item">
+                            <span class="info-label">Resolution:</span>
+                            <span class="info-value" id="videoResolution">--</span>
+                        </div>
+                        <div class="info-item">
+                            <span class="info-label">File Size:</span>
+                            <span class="info-value" id="fileSize">-- MB</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="sidebar">
+                <div class="card">
+                    <div class="card-header">
+                        <h3 class="card-title"><i class="fas fa-history"></i> Recordings</h3>
+                        <button class="btn" onclick="refreshRecordings()" style="padding: 8px 12px;">
+                            <i class="fas fa-sync-alt"></i>
+                        </button>
+                    </div>
+                    
+                    <div class="recordings-list" id="recordingsList">
+                        <div class="recording-item" onclick="loadSampleRecording()">
+                            <div class="recording-time">Sample Recording 1</div>
+                            <div class="recording-duration">02:45 • 15.2 MB</div>
+                        </div>
+                        <div class="recording-item" onclick="loadSampleRecording()">
+                            <div class="recording-time">Sample Recording 2</div>
+                            <div class="recording-duration">01:30 • 8.7 MB</div>
+                        </div>
+                        <div class="recording-item" onclick="loadSampleRecording()">
+                            <div class="recording-time">Sample Recording 3</div>
+                            <div class="recording-duration">04:12 • 24.1 MB</div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="card">
+                    <div class="card-header">
+                        <h3 class="card-title"><i class="fas fa-broadcast-tower"></i> Live View</h3>
+                    </div>
+                    <div class="live-view-section">
+                        <div class="live-status" id="connectionStatus">Disconnected</div>
+                        <button class="btn btn-primary" onclick="toggleLiveConnection()" id="connectBtn">
+                            <i class="fas fa-plug"></i> Connect Live
+                        </button>
+                    </div>
+                </div>
+
+                <div class="card">
+                    <div class="card-header">
+                        <h3 class="card-title"><i class="fas fa-search"></i> Search & Filter</h3>
+                    </div>
+                    <div class="search-section">
+                        <input type="text" class="search-input" placeholder="Search recordings..." id="searchInput">
+                        <div class="filter-buttons">
+                            <button class="filter-btn active" onclick="setFilter('all')">All</button>
+                            <button class="filter-btn" onclick="setFilter('today')">Today</button>
+                            <button class="filter-btn" onclick="setFilter('week')">This Week</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="card">
+            <div class="card-header">
+                <h3 class="card-title"><i class="fas fa-images"></i> Recording Thumbnails</h3>
+            </div>
+            <div class="thumbnail-grid" id="thumbnailGrid">
+                <div class="thumbnail-item" onclick="loadSampleRecording()">
+                    <div class="thumbnail-img"></div>
+                    <div class="thumbnail-time">10:30 AM</div>
+                </div>
+                <div class="thumbnail-item" onclick="loadSampleRecording()">
+                    <div class="thumbnail-img"></div>
+                    <div class="thumbnail-time">02:15 PM</div>
+                </div>
+                <div class="thumbnail-item" onclick="loadSampleRecording()">
+                    <div class="thumbnail-img"></div>
+                    <div class="thumbnail-time">06:45 PM</div>
+                </div>
+                <div class="thumbnail-item" onclick="loadSampleRecording()">
+                    <div class="thumbnail-img"></div>
+                    <div class="thumbnail-time">09:20 PM</div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="footer">
+        <p>SecureView • Professional Security Monitoring Viewer • v1.0</p>
+        <p style="margin-top: 10px; font-size: 0.8rem; color: #64748b;">
+            <i class="fas fa-info-circle"></i> Connect to your SecureCam Pro device to view live feeds and recordings
+        </p>
+    </div>
+
+    <div class="notification" id="notification">
+        <i class="fas fa-info-circle"></i>
+        <span id="notificationText"></span>
+    </div>
+
+    <script>
+        // Global variables
+        let currentVideo = null;
+        let isLiveConnected = false;
+        let recordings = [];
+        let currentFilter = 'all';
+
+        // Initialize the viewer
+        function initViewer() {
+            updateVideoInfo();
+            setupEventListeners();
+            loadSampleRecordings();
+        }
+
+        // Show notification
+        function showNotification(message, type = 'info') {
+            const notification = document.getElementById('notification');
+            const text = document.getElementById('notificationText');
+            
+            text.textContent = message;
+            notification.className = 'notification';
+            
+            if (type === 'error') {
+                notification.classList.add('error');
+            }
+            
+            notification.classList.add('show');
+            
+            setTimeout(() => {
+                notification.classList.remove('show');
+            }, 3000);
+        }
+
+        // Setup event listeners
+        function setupEventListeners() {
+            const video = document.getElementById('mainVideo');
+            
+            video.addEventListener('timeupdate', updateTimeDisplay);
+            video.addEventListener('loadedmetadata', updateVideoInfo);
+            video.addEventListener('ended', onVideoEnded);
+            
+            // Search functionality
+            const searchInput = document.getElementById('searchInput');
+            searchInput.addEventListener('input', filterRecordings);
+        }
+
+        // Update video information
+        function updateVideoInfo() {
+            const video = document.getElementById('mainVideo');
+            const duration = video.duration || 0;
+            
+            document.getElementById('videoDuration').textContent = formatTime(duration);
+            document.getElementById('timeDisplay').textContent = `00:00 / ${formatTime(duration)}`;
+        }
+
+        // Format time (seconds to MM:SS)
+        function formatTime(seconds) {
+            if (isNaN(seconds)) return '00:00';
+            
+            const mins = Math.floor(seconds / 60);
+            const secs = Math.floor(seconds % 60);
+            return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
+        }
+
+        // Update time display during playback
+        function updateTimeDisplay() {
+            const video = document.getElementById('mainVideo');
+            const current = video.currentTime || 0;
+            const duration = video.duration || 0;
+            
+            document.getElementById('timeDisplay').textContent = 
+                `${formatTime(current)} / ${formatTime(duration)}`;
+        }
+
+        // Video control functions
+        function playVideo() {
+            const video = document.getElementById('mainVideo');
+            video.play().catch(e => {
+                showNotification('Cannot play video: ' + e.message, 'error');
+            });
+        }
+
+        function pauseVideo() {
+            const video = document.getElementById('mainVideo');
+            video.pause();
+        }
+
+        function seekBackward() {
+            const video = document.getElementById('mainVideo');
+            video.currentTime = Math.max(0, video.currentTime - 10);
+        }
+
+        function seekForward() {
+            const video = document.getElementById('mainVideo');
+            video.currentTime = Math.min(video.duration, video.currentTime + 10);
+        }
+
+        function toggleFullscreen() {
+            const video = document.getElementById('mainVideo');
+            
+            if (!document.fullscreenElement) {
+                if (video.requestFullscreen) {
+                    video.requestFullscreen();
+                } else if (video.webkitRequestFullscreen) {
+                    video.webkitRequestFullscreen();
+                } else if (video.msRequestFullscreen) {
+                    video.msRequestFullscreen();
+                }
+            } else {
+                if (document.exitFullscreen) {
+                    document.exitFullscreen();
+                } else if (document.webkitExitFullscreen) {
+                    document.webkitExitFullscreen();
+                } else if (document.msExitFullscreen) {
+                    document.msExitFullscreen();
+                }
+            }
+        }
+
+        function downloadVideo() {
+            const video = document.getElementById('mainVideo');
+            const source = video.querySelector('source');
+            
+            if (source && source.src) {
+                const a = document.createElement('a');
+                a.href = source.src;
+                a.download = 'recording-' + new Date().toISOString().replace(/[:.]/g, '-') + '.webm';
+                a.click();
+            } else {
+                showNotification('No video available for download', 'error');
+            }
+        }
+
+        // Live view functions
+        function connectLive() {
+            showNotification('Live view feature would connect to your SecureCam Pro device');
+            // In a real implementation, this would connect via WebSocket or similar
+        }
+
+        function toggleLiveConnection() {
+            isLiveConnected = !isLiveConnected;
+            const btn = document.getElementById('connectBtn');
+            const status = document.getElementById('connectionStatus');
+            
+            if (isLiveConnected) {
+                status.textContent = 'Connected Live';
+                status.classList.add('live-active');
+                btn.innerHTML = '<i class="fas fa-plug"></i> Disconnect';
+                btn.classList.add('btn-danger');
+                showNotification('Live feed connected');
+                
+                // Simulate live feed (in real app, this would be WebSocket/RTMP)
+                simulateLiveFeed();
+            } else {
+                status.textContent = 'Disconnected';
+                status.classList.remove('live-active');
+                btn.innerHTML = '<i class="fas fa-plug"></i> Connect Live';
+                btn.classList.remove('btn-danger');
+                showNotification('Live feed disconnected');
+                
+                // Stop simulated live feed
+                stopLiveFeed();
+            }
+        }
+
+        function simulateLiveFeed() {
+            // This would be replaced with actual WebSocket/RTMP connection
+            showNotification('Simulating live feed connection...');
+        }
+
+        function stopLiveFeed() {
+            // Clean up live feed connection
+        }
+
+        // Recording management
+        function loadSampleRecording() {
+            // In a real implementation, this would load actual recordings
+            // For demo purposes, we'll simulate loading
+            const video = document.getElementById('mainVideo');
+            const source = video.querySelector('source');
+            
+            // Create a sample video source (in real app, this would be from storage)
+            const blob = new Blob([new Uint8Array(1024)], { type: 'video/webm' });
+            const url = URL.createObjectURL(blob);
+            
+            if (source) {
+                source.src = url;
+                video.load();
+            }
+            
+            document.getElementById('currentFile').textContent = 'Sample Recording';
+            document.getElementById('videoResolution').textContent = '1280x720';
+            document.getElementById('fileSize').textContent = '15.2 MB';
+            
+            showNotification('Sample recording loaded');
+        }
+
+        function refreshRecordings() {
+            showNotification('Refreshing recordings list...');
+            // In real implementation, this would fetch from server/storage
+        }
+
+        function filterRecordings() {
+            const searchTerm = document.getElementById('searchInput').value.toLowerCase();
+            const items = document.querySelectorAll('.recording-item');
+            
+            items.forEach(item => {
+                const text = item.textContent.toLowerCase();
+                if (text.includes(searchTerm)) {
+                    item.style.display = 'block';
+                } else {
+                    item.style.display = 'none';
+                }
+            });
+        }
+
+        function setFilter(filter) {
+            currentFilter = filter;
+            const buttons = document.querySelectorAll('.filter-btn');
+            
+            buttons.forEach(btn => {
+                btn.classList.remove('active');
+                if (btn.textContent.toLowerCase().includes(filter)) {
+                    btn.classList.add('active');
+                }
+            });
+            
+            showNotification(`Filter set to: ${filter}`);
+        }
+
+        function loadSampleRecordings() {
+            // Populate with sample data
+            recordings = [
+                { name: 'Front Door - Morning', duration: '02:45', size: '15.2 MB', time: '08:30 AM' },
+                { name: 'Backyard - Afternoon', duration: '01:30', size: '8.7 MB', time: '02:15 PM' },
+                { name: 'Living Room - Evening', duration: '04:12', size: '24.1 MB', time: '06:45 PM' },
+                { name: 'Night Vision', duration: '03:28', size: '19.8 MB', time: '11:20 PM' }
+            ];
+        }
+
+        function onVideoEnded() {
+            showNotification('Playback completed');
+        }
+
+        // Initialize the viewer when page loads
+        window.onload = initViewer;
+    </script>
+</body>
+</html>

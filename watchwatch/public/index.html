@@ -1,0 +1,1099 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Shuvan - Watch Videos Together</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.socket.io/4.5.0/socket.io.min.js"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+        
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            font-family: 'Inter', sans-serif;
+        }
+        
+        body {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+        }
+        
+        .video-container {
+            position: relative;
+            width: 100%;
+            padding-bottom: 56.25%; /* 16:9 Aspect Ratio */
+            height: 0;
+        }
+        
+        .video-container iframe,
+        .video-container video {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            border-radius: 12px;
+            box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1);
+        }
+        
+        .chat-messages {
+            scrollbar-width: thin;
+            scrollbar-color: rgba(255, 255, 255, 0.2) transparent;
+        }
+        
+        .chat-messages::-webkit-scrollbar {
+            width: 4px;
+        }
+        
+        .chat-messages::-webkit-scrollbar-track {
+            background: transparent;
+        }
+        
+        .chat-messages::-webkit-scrollbar-thumb {
+            background-color: rgba(255, 255, 255, 0.2);
+            border-radius: 20px;
+        }
+        
+        .mic-indicator {
+            animation: pulse 2s infinite;
+        }
+        
+        @keyframes pulse {
+            0% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.7); }
+            70% { box-shadow: 0 0 0 10px rgba(239, 68, 68, 0); }
+            100% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0); }
+        }
+        
+        .glass-effect {
+            background: rgba(255, 255, 255, 0.1);
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+        }
+        
+        .user-avatar {
+            background: linear-gradient(135deg, #667eea, #764ba2);
+        }
+        
+        .room-info {
+            background: linear-gradient(135deg, #ff6b6b, #ee5a24);
+        }
+        
+        .sync-status {
+            background: linear-gradient(135deg, #10b981, #059669);
+        }
+    </style>
+</head>
+<body class="min-h-screen p-4">
+    <div class="max-w-7xl mx-auto">
+        <!-- Header and Room Join Section -->
+        <div class="glass-effect rounded-2xl p-6 mb-6" id="joinSection">
+            <div class="text-center mb-4">
+                <h1 class="text-4xl font-bold text-white mb-2">Shuvan</h1>
+                <p class="text-white/80">Join a room to watch videos together</p>
+            </div>
+            
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+                <div>
+                    <label class="block text-white mb-2 font-medium">Your Username</label>
+                    <input 
+                        type="text" 
+                        id="userName" 
+                        placeholder="Enter your username" 
+                        class="w-full px-4 py-2 rounded-lg bg-white/10 border border-white/20 text-white placeholder-white/60 focus:outline-none focus:ring-2 focus:ring-white/30"
+                        maxlength="20"
+                    >
+                </div>
+                <div>
+                    <label class="block text-white mb-2 font-medium">Room ID</label>
+                    <input 
+                        type="text" 
+                        id="roomId" 
+                        placeholder="Enter room ID or create new" 
+                        class="w-full px-4 py-2 rounded-lg bg-white/10 border border-white/20 text-white placeholder-white/60 focus:outline-none focus:ring-2 focus:ring-white/30"
+                    >
+                </div>
+            </div>
+            
+            <div class="flex gap-4 justify-center">
+                <button 
+                    onclick="joinRoom()" 
+                    class="px-6 py-3 bg-green-500 hover:bg-green-600 text-white rounded-lg transition-colors font-semibold"
+                >
+                    Join Room
+                </button>
+                <button 
+                    onclick="generateRoomId()" 
+                    class="px-6 py-3 bg-blue-500 hover:bg-blue-600 text-white rounded-lg transition-colors font-semibold"
+                >
+                    Generate Room ID
+                </button>
+            </div>
+        </div>
+
+        <!-- Main Application (Hidden until room is joined) -->
+        <div id="mainApp" class="hidden">
+            <!-- Room Info Header -->
+            <div class="glass-effect rounded-2xl p-4 mb-6 flex justify-between items-center">
+                <div>
+                    <h2 class="text-2xl font-bold text-white">Shuvan Room</h2>
+                    <div class="flex items-center gap-2 mt-1">
+                        <div class="room-info px-3 py-1 rounded-full text-white text-sm font-medium">
+                            Room: <span id="currentRoomId">-</span>
+                        </div>
+                        <div class="bg-green-500 px-3 py-1 rounded-full text-white text-sm font-medium">
+                            Users: <span id="userCount">1</span>
+                        </div>
+                        <div class="sync-status px-3 py-1 rounded-full text-white text-sm font-medium">
+                            Sync: <span id="syncStatus">Active</span>
+                        </div>
+                    </div>
+                </div>
+                <button 
+                    onclick="leaveRoom()" 
+                    class="px-4 py-2 bg-red-500 hover:bg-red-600 text-white rounded-lg transition-colors"
+                >
+                    Leave Room
+                </button>
+            </div>
+
+            <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                <!-- Left Column - Video and Controls -->
+                <div class="lg:col-span-2">
+                    <div class="glass-effect rounded-2xl p-6 mb-6">
+                        <!-- Video Player -->
+                        <div class="video-container mb-4" id="videoContainer">
+                            <div class="flex items-center justify-center h-full text-white">
+                                <p>Select a YouTube URL or upload a video to start watching</p>
+                            </div>
+                        </div>
+
+                        <!-- Video Controls -->
+                        <div class="flex gap-4 mb-4">
+                            <button onclick="syncPlay()" class="px-4 py-2 bg-green-500 hover:bg-green-600 text-white rounded-lg">
+                                ▶️ Play All
+                            </button>
+                            <button onclick="syncPause()" class="px-4 py-2 bg-yellow-500 hover:bg-yellow-600 text-white rounded-lg">
+                                ⏸️ Pause All
+                            </button>
+                            <button onclick="syncRestart()" class="px-4 py-2 bg-blue-500 hover:bg-blue-600 text-white rounded-lg">
+                                🔄 Restart All
+                            </button>
+                        </div>
+
+                        <!-- Video Inputs -->
+                        <div class="flex flex-wrap gap-4 mb-6">
+                            <input 
+                                type="text" 
+                                id="youtubeUrl" 
+                                placeholder="Enter YouTube URL" 
+                                class="flex-1 px-4 py-2 rounded-lg bg-white/10 border border-white/20 text-white placeholder-white/60 focus:outline-none focus:ring-2 focus:ring-white/30"
+                            >
+                            <button 
+                                onclick="loadYouTubeVideo()" 
+                                class="px-6 py-2 bg-blue-500 hover:bg-blue-600 text-white rounded-lg transition-colors"
+                            >
+                                Load
+                            </button>
+                        </div>
+
+                        <div class="flex flex-wrap gap-4">
+                            <input 
+                                type="file" 
+                                id="videoFile" 
+                                accept="video/*" 
+                                class="flex-1 px-4 py-2 rounded-lg bg-white/10 border border-white/20 text-white file:mr-4 file:py-2 file:px-4 file:rounded file:border-0 file:text-sm file:font-semibold file:bg-white/20 file:text-white hover:file:bg-white/30"
+                            >
+                            <button 
+                                onclick="uploadVideo()" 
+                                class="px-6 py-2 bg-purple-500 hover:bg-purple-600 text-white rounded-lg transition-colors"
+                            >
+                                Upload
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Voice Chat Controls -->
+                    <div class="glass-effect rounded-2xl p-6">
+                        <h3 class="text-white text-xl font-semibold mb-4">Voice Chat</h3>
+                        <div class="flex items-center gap-4">
+                            <button 
+                                id="joinVoiceBtn" 
+                                onclick="joinVoiceChat()"
+                                class="px-6 py-2 bg-green-500 hover:bg-green-600 text-white rounded-lg transition-colors"
+                            >
+                                Join Voice Chat
+                            </button>
+                            <button 
+                                id="leaveVoiceBtn" 
+                                onclick="leaveVoiceChat()"
+                                class="px-6 py-2 bg-red-500 hover:bg-red-600 text-white rounded-lg transition-colors hidden"
+                            >
+                                Leave Voice Chat
+                            </button>
+                            <div id="micStatus" class="flex items-center gap-2 hidden">
+                                <div class="w-3 h-3 bg-red-500 rounded-full mic-indicator"></div>
+                                <span class="text-white">Mic Active</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Right Column - Chat -->
+                <div class="lg:col-span-1">
+                    <div class="glass-effect rounded-2xl p-6 h-full flex flex-col">
+                        <h3 class="text-white text-xl font-semibold mb-4">Room Chat</h3>
+                        
+                        <!-- Chat Messages -->
+                        <div id="chatMessages" class="chat-messages flex-1 overflow-y-auto mb-4 space-y-3 max-h-96">
+                            <div class="text-center text-white/60 py-8">
+                                <p>Welcome to the room! Start chatting with others.</p>
+                            </div>
+                        </div>
+                        
+                        <!-- Chat Input -->
+                        <div class="flex gap-2">
+                            <input 
+                                type="text" 
+                                id="messageInput" 
+                                placeholder="Type your message..." 
+                                class="flex-1 px-4 py-2 rounded-lg bg-white/10 border border-white/20 text-white placeholder-white/60 focus:outline-none focus:ring-2 focus:ring-white/30"
+                                onkeypress="handleChatKeyPress(event)"
+                            >
+                            <button 
+                                onclick="sendMessage()" 
+                                class="px-4 py-2 bg-blue-500 hover:bg-blue-600 text-white rounded-lg transition-colors"
+                            >
+                                Send
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Connected Users -->
+            <div class="glass-effect rounded-2xl p-6 mt-6">
+                <h3 class="text-white text-xl font-semibold mb-4">Connected Users in Room</h3>
+                <div id="connectedUsers" class="flex flex-wrap gap-3">
+                    <div class="flex items-center gap-2 bg-white/10 rounded-full px-4 py-2">
+                        <div class="w-3 h-3 bg-green-400 rounded-full"></div>
+                        <span class="text-white">You</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    
+       <script>
+  // Socket.io connection
+  const socket = io();
+
+  // Global state
+  let currentVideoType = null; // 'youtube' or 'uploaded'
+  let localStream = null;
+  let peerConnections = {};
+  let isInVoiceChat = false;
+  let currentRoom = null;
+  let currentUser = null;
+  let lastSyncTime = 0;
+
+  // VERY IMPORTANT: prevent echo loops when applying remote actions
+  let isRemoteAction = false;
+
+  // DOM Elements
+  const joinSection = document.getElementById('joinSection');
+  const mainApp = document.getElementById('mainApp');
+  const videoContainer = document.getElementById('videoContainer');
+  const chatMessages = document.getElementById('chatMessages');
+  const messageInput = document.getElementById('messageInput');
+  const connectedUsers = document.getElementById('connectedUsers');
+  const joinVoiceBtn = document.getElementById('joinVoiceBtn');
+  const leaveVoiceBtn = document.getElementById('leaveVoiceBtn');
+  const micStatus = document.getElementById('micStatus');
+  const currentRoomIdSpan = document.getElementById('currentRoomId');
+  const userCountSpan = document.getElementById('userCount');
+  const syncStatusSpan = document.getElementById('syncStatus');
+
+  // Socket events
+  socket.on('connect', () => {
+    console.log('Connected to server');
+  });
+
+  socket.on('room-joined', (data) => {
+    console.log('Joined room:', data.roomId);
+    currentRoom = data.roomId;
+    currentRoomIdSpan.textContent = data.roomId;
+    userCountSpan.textContent = data.userCount;
+
+    // Show main app, hide join section
+    joinSection.classList.add('hidden');
+    mainApp.classList.remove('hidden');
+
+    // Add welcome message to chat
+    addSystemMessage(`Welcome to room ${data.roomId}! You can now start watching videos together.`);
+
+    // If room already has a video state, render it and sync playback
+    const st = data.currentVideoState;
+    if (st && st.type) {
+      if (st.type === 'youtube' && st.videoId) {
+        renderYouTube(st.videoId, false /*emit*/).then(() => {
+          // apply time + play/pause
+          safeApplyRemote(() => {
+            if (Math.abs(window.YTPlayer.getCurrentTime() - st.currentTime) > 0.5) {
+              window.YTPlayer.seekTo(st.currentTime, true);
+            }
+            if (st.isPlaying) window.YTPlayer.playVideo(); else window.YTPlayer.pauseVideo();
+          });
+        });
+      } else if (st.type === 'uploaded' && st.videoUrl) {
+        renderUploaded(st.videoUrl, false /*emit*/).then(() => {
+          safeApplyRemote(() => {
+            if (window.uploadedVideo) {
+              if (Math.abs(window.uploadedVideo.currentTime - st.currentTime) > 0.5) {
+                window.uploadedVideo.currentTime = st.currentTime;
+              }
+              if (st.isPlaying) window.uploadedVideo.play(); else window.uploadedVideo.pause();
+            }
+          });
+        });
+      }
+    }
+  });
+
+  socket.on('user-joined', (data) => {
+    addSystemMessage(`${data.user.name} joined the room`);
+    updateUserCount(data.userCount);
+    updateUserList(data.users);
+  });
+
+  socket.on('user-left', (data) => {
+    addSystemMessage(`${data.userName} left the room`);
+    updateUserCount(data.userCount);
+    updateUserList(data.users);
+  });
+
+  socket.on('user-list', (users) => {
+    updateUserList(users);
+  });
+
+  socket.on('chat-message', (data) => {
+    addChatMessage(data.user, data.message);
+  });
+
+  // NEW: when any user loads a video (YouTube or uploaded), render it for everyone
+  socket.on('video-load', async (data) => {
+    const { type, videoId, videoUrl, userId } = data;
+    console.log('Received video-load:', data);
+
+    if (type === 'youtube' && videoId) {
+      await renderYouTube(videoId, false /*emit*/);
+    } else if (type === 'uploaded' && videoUrl) {
+      await renderUploaded(videoUrl, false /*emit*/);
+    }
+  });
+
+  // Actions from other users (play, pause, seek, restart)
+  socket.on('video-action', (data) => {
+    if (!currentUser || data.userId === currentUser.id) return;
+
+    const now = Date.now();
+    // light debounce only for spammy seeks
+    if (data.action === 'seek' && now - lastSyncTime < 200) return;
+    lastSyncTime = now;
+
+    console.log('Received video action:', data.action, data.time);
+
+    const driftOK = (playerTime, target) => Math.abs((playerTime ?? 0) - (target ?? 0)) <= 0.5;
+
+    if (currentVideoType === 'youtube' && window.YTPlayer) {
+      safeApplyRemote(() => {
+        switch (data.action) {
+          case 'play':
+            if (!driftOK(window.YTPlayer.getCurrentTime(), data.time)) {
+              window.YTPlayer.seekTo(data.time ?? 0, true);
+            }
+            window.YTPlayer.playVideo();
+            break;
+          case 'pause':
+            if (!driftOK(window.YTPlayer.getCurrentTime(), data.time)) {
+              window.YTPlayer.seekTo(data.time ?? 0, true);
+            }
+            window.YTPlayer.pauseVideo();
+            break;
+          case 'seek':
+            window.YTPlayer.seekTo(data.time ?? 0, true);
+            break;
+          case 'restart':
+            window.YTPlayer.seekTo(0, true);
+            window.YTPlayer.playVideo();
+            break;
+        }
+      });
+    } else if (currentVideoType === 'uploaded' && window.uploadedVideo) {
+      safeApplyRemote(() => {
+        switch (data.action) {
+          case 'play':
+            if (!driftOK(window.uploadedVideo.currentTime, data.time)) {
+              window.uploadedVideo.currentTime = data.time ?? 0;
+            }
+            window.uploadedVideo.play();
+            break;
+          case 'pause':
+            if (!driftOK(window.uploadedVideo.currentTime, data.time)) {
+              window.uploadedVideo.currentTime = data.time ?? 0;
+            }
+            window.uploadedVideo.pause();
+            break;
+          case 'seek':
+            window.uploadedVideo.currentTime = data.time ?? 0;
+            break;
+          case 'restart':
+            window.uploadedVideo.currentTime = 0;
+            window.uploadedVideo.play();
+            break;
+        }
+      });
+    }
+  });
+
+  socket.on('voice-signal', (data) => {
+    if (data.to === currentUser.id) {
+      handleSignalingData(data);
+    }
+  });
+
+  // ---------- Room Functions ----------
+  function joinRoom() {
+    const userName = document.getElementById('userName').value.trim();
+    const roomId = document.getElementById('roomId').value.trim();
+
+    if (!userName) return alert('Please enter a username');
+    if (!roomId) return alert('Please enter a room ID');
+
+    currentUser = {
+      id: Math.random().toString(36).substr(2, 9),
+      name: userName
+    };
+
+    socket.emit('join-room', {
+      user: currentUser,
+      roomId: roomId
+    });
+  }
+
+  function generateRoomId() {
+    const randomId = Math.random().toString(36).substr(2, 8).toUpperCase();
+    document.getElementById('roomId').value = randomId;
+  }
+
+  function leaveRoom() {
+    if (currentRoom) {
+      socket.emit('leave-room', {
+        userId: currentUser.id,
+        roomId: currentRoom
+      });
+
+      // Reset everything
+      currentRoom = null;
+      currentUser = null;
+      mainApp.classList.add('hidden');
+      joinSection.classList.remove('hidden');
+
+      // Clear chat and video
+      chatMessages.innerHTML = `
+        <div class="text-center text-white/60 py-8">
+          <p>Welcome to the room! Start chatting with others.</p>
+        </div>
+      `;
+      videoContainer.innerHTML = `
+        <div class="flex items-center justify-center h-full text-white">
+          <p>Select a YouTube URL or upload a video to start watching</p>
+        </div>
+      `;
+
+      if (isInVoiceChat) {
+        leaveVoiceChat();
+      }
+    }
+  }
+
+  // ---------- YouTube: load + sync ----------
+  function loadYouTubeVideo() {
+    const url = document.getElementById('youtubeUrl').value.trim();
+    if (!url) return;
+
+    const videoId = extractYouTubeId(url);
+    if (!videoId) {
+      alert('Please enter a valid YouTube URL');
+      return;
+    }
+
+    // Render locally
+    renderYouTube(videoId, true /*emit*/);
+  }
+
+  function renderYouTube(videoId, shouldEmit) {
+    return new Promise((resolve) => {
+      currentVideoType = 'youtube';
+      videoContainer.innerHTML = `<div id="youtubePlayer"></div>`;
+
+      const startPlayer = () => {
+        window.YTPlayer = new YT.Player('youtubePlayer', {
+          height: '100%',
+          width: '100%',
+          videoId,
+          playerVars: {
+            'playsinline': 1,
+            'enablejsapi': 1,
+            'origin': window.location.origin,
+            'controls': 1,
+            'rel': 0
+          },
+          events: {
+            'onReady': (e) => {
+              console.log('YouTube player ready');
+              // Do not auto-play here; we sync via actions/state
+              resolve();
+            },
+            'onStateChange': onPlayerStateChange,
+            'onError': onPlayerError
+          }
+        });
+      };
+
+      if (!window.YT) {
+        const tag = document.createElement('script');
+        tag.src = "https://www.youtube.com/iframe_api";
+        const firstScriptTag = document.getElementsByTagName('script')[0];
+        firstScriptTag.parentNode.insertBefore(tag, firstScriptTag);
+        window.onYouTubeIframeAPIReady = () => startPlayer();
+      } else {
+        startPlayer();
+      }
+
+      if (shouldEmit && currentRoom && currentUser) {
+        socket.emit('video-load', {
+          roomId: currentRoom,
+          userId: currentUser.id,
+          type: 'youtube',
+          videoId
+        });
+      }
+    });
+  }
+
+  function onPlayerStateChange(event) {
+    // don't echo remote-applied actions
+    if (isRemoteAction) return;
+
+    const player = event.target;
+    const currentTime = player.getCurrentTime();
+
+    switch (event.data) {
+      case YT.PlayerState.PLAYING:
+        emitAction('play', currentTime);
+        break;
+      case YT.PlayerState.PAUSED:
+        emitAction('pause', currentTime);
+        break;
+      case YT.PlayerState.BUFFERING:
+        // optional: throttle; we avoid spam
+        break;
+    }
+  }
+
+  function onPlayerError(event) {
+    console.error('YouTube player error:', event.data);
+  }
+
+  // ---------- Uploaded video: upload + render + sync ----------
+  async function uploadVideo() {
+    const fileInput = document.getElementById('videoFile');
+    const file = fileInput.files[0];
+
+    if (!file) return alert('Please select a video file');
+    if (!file.type.startsWith('video/')) return alert('Please select a valid video file');
+    if (!currentRoom || !currentUser) return alert('Join a room first');
+
+    // Upload to server so others can access
+    try {
+      const fd = new FormData();
+      fd.append('video', file);
+
+      const resp = await fetch('/upload', { method: 'POST', body: fd });
+      if (!resp.ok) throw new Error('Upload failed');
+      const json = await resp.json();
+      const videoUrl = json.path; // e.g. /uploads/<filename>
+
+      // Render locally and broadcast to room
+      await renderUploaded(videoUrl, true /*emit*/);
+
+    } catch (e) {
+      console.error(e);
+      alert('Upload failed');
+    }
+  }
+
+  function renderUploaded(videoUrl, shouldEmit) {
+    return new Promise((resolve) => {
+      currentVideoType = 'uploaded';
+      videoContainer.innerHTML = `
+        <video id="uploadedVideo" controls class="w-full h-full">
+          <source src="${videoUrl}" type="video/mp4">
+          Your browser does not support the video tag.
+        </video>
+      `;
+      window.uploadedVideo = document.getElementById('uploadedVideo');
+
+      // Remove any old listeners first to prevent duplicates
+      window.uploadedVideo.onplay = null;
+      window.uploadedVideo.onpause = null;
+      window.uploadedVideo.onseeked = null;
+      window.uploadedVideo.ontimeupdate = null;
+
+      window.uploadedVideo.addEventListener('play', () => {
+        if (isRemoteAction) return;
+        emitAction('play', window.uploadedVideo.currentTime);
+      });
+      window.uploadedVideo.addEventListener('pause', () => {
+        if (isRemoteAction) return;
+        emitAction('pause', window.uploadedVideo.currentTime);
+      });
+      window.uploadedVideo.addEventListener('seeked', () => {
+        if (isRemoteAction) return;
+        emitAction('seek', window.uploadedVideo.currentTime);
+      });
+      // optional: periodic correction (keep light)
+      window.uploadedVideo.addEventListener('timeupdate', () => {});
+
+      if (shouldEmit && currentRoom && currentUser) {
+        socket.emit('video-load', {
+          roomId: currentRoom,
+          userId: currentUser.id,
+          type: 'uploaded',
+          videoUrl
+        });
+      }
+
+      resolve();
+    });
+  }
+
+  // ---------- Manual Sync Controls ----------
+  function syncPlay() {
+    if (!currentRoom || !currentUser) return;
+    if (currentVideoType === 'youtube' && window.YTPlayer) {
+      window.YTPlayer.playVideo();
+      emitAction('play', window.YTPlayer.getCurrentTime());
+    } else if (currentVideoType === 'uploaded' && window.uploadedVideo) {
+      window.uploadedVideo.play();
+      emitAction('play', window.uploadedVideo.currentTime);
+    }
+  }
+
+  function syncPause() {
+    if (!currentRoom || !currentUser) return;
+    if (currentVideoType === 'youtube' && window.YTPlayer) {
+      window.YTPlayer.pauseVideo();
+      emitAction('pause', window.YTPlayer.getCurrentTime());
+    } else if (currentVideoType === 'uploaded' && window.uploadedVideo) {
+      window.uploadedVideo.pause();
+      emitAction('pause', window.uploadedVideo.currentTime);
+    }
+  }
+
+  function syncRestart() {
+    if (!currentRoom || !currentUser) return;
+    if (currentVideoType === 'youtube' && window.YTPlayer) {
+      window.YTPlayer.seekTo(0, true);
+      window.YTPlayer.playVideo();
+    } else if (currentVideoType === 'uploaded' && window.uploadedVideo) {
+      window.uploadedVideo.currentTime = 0;
+      window.uploadedVideo.play();
+    }
+    emitAction('restart', 0);
+  }
+
+  function emitAction(action, time) {
+    if (!currentRoom || !currentUser) return;
+    socket.emit('video-action', {
+      action,
+      time,
+      userId: currentUser.id,
+      roomId: currentRoom
+    });
+  }
+
+  // ---------- Chat ----------
+  function sendMessage() {
+    const message = messageInput.value.trim();
+    if (!message || !currentRoom || !currentUser) return;
+
+    socket.emit('chat-message', {
+      user: currentUser,
+      message: message,
+      roomId: currentRoom
+    });
+
+    messageInput.value = '';
+  }
+
+  function handleChatKeyPress(event) {
+    if (event.key === 'Enter') {
+      sendMessage();
+    }
+  }
+
+  function addChatMessage(user, message) {
+    const messageDiv = document.createElement('div');
+    messageDiv.className = 'flex items-start gap-3 p-3 rounded-lg bg-white/10';
+
+    messageDiv.innerHTML = `
+      <div class="w-8 h-8 rounded-full user-avatar flex items-center justify-center text-white font-semibold text-sm">
+        ${user.name.charAt(0).toUpperCase()}
+      </div>
+      <div class="flex-1">
+        <div class="text-white font-semibold text-sm">${user.name}</div>
+        <div class="text-white/80 text-sm">${message}</div>
+      </div>
+    `;
+
+    chatMessages.appendChild(messageDiv);
+    chatMessages.scrollTop = chatMessages.scrollHeight;
+  }
+
+  function addSystemMessage(message) {
+    const messageDiv = document.createElement('div');
+    messageDiv.className = 'text-center text-white/60 italic py-2';
+    messageDiv.textContent = message;
+
+    chatMessages.appendChild(messageDiv);
+    chatMessages.scrollTop = chatMessages.scrollHeight;
+  }
+
+  // ---------- Users ----------
+  function updateUserList(users) {
+    connectedUsers.innerHTML = '';
+
+    if (currentUser) addUserToDisplay(currentUser, true);
+    Object.values(users).forEach(user => {
+      if (user.id !== currentUser?.id) addUserToDisplay(user, false);
+    });
+  }
+
+  function updateUserCount(count) {
+    userCountSpan.textContent = count;
+  }
+
+  function addUserToDisplay(user, isCurrentUser) {
+    const userDiv = document.createElement('div');
+    userDiv.className = 'flex items-center gap-2 bg-white/10 rounded-full px-4 py-2';
+    userDiv.innerHTML = `
+      <div class="w-3 h-3 ${isCurrentUser ? 'bg-green-400' : 'bg-blue-400'} rounded-full"></div>
+      <span class="text-white">${user.name}${isCurrentUser ? ' (You)' : ''}</span>
+    `;
+    connectedUsers.appendChild(userDiv);
+  }
+
+  // ---------- Voice (placeholder) ----------
+  async function joinVoiceChat() {
+    try {
+      localStream = await navigator.mediaDevices.getUserMedia({
+        audio: true,
+        video: false
+      });
+
+      isInVoiceChat = true;
+      joinVoiceBtn.classList.add('hidden');
+      leaveVoiceBtn.classList.remove('hidden');
+      micStatus.classList.remove('hidden');
+
+      socket.emit('join-voice', {
+        roomId: currentRoom,
+        userId: currentUser.id
+      });
+
+    } catch (error) {
+      console.error('Error accessing microphone:', error);
+      alert('Could not access microphone. Please check your permissions.');
+    }
+  }
+
+  function leaveVoiceChat() {
+    if (localStream) {
+      localStream.getTracks().forEach(track => track.stop());
+      localStream = null;
+    }
+
+    isInVoiceChat = false;
+    joinVoiceBtn.classList.remove('hidden');
+    leaveVoiceBtn.classList.add('hidden');
+    micStatus.classList.add('hidden');
+
+    Object.values(peerConnections).forEach(pc => pc.close());
+    peerConnections = {};
+
+    socket.emit('leave-voice', {
+      roomId: currentRoom,
+      userId: currentUser.id
+    });
+  }
+
+  function handleSignalingData(data) {
+    console.log('Received signaling data:', data);
+  }
+
+  // ---------- Utils ----------
+  function extractYouTubeId(url) {
+    const regExp = /^.*(youtu.be\/|v\/|u\/\w\/|embed\/|watch\?v=|\&v=)([^#\&\?]*).*/;
+    const match = url.match(regExp);
+    return (match && match[2].length === 11) ? match[2] : null;
+  }
+
+  function safeApplyRemote(fn) {
+    isRemoteAction = true;
+    try { fn(); } finally {
+      // short delay so native events finish before we re-enable emitting
+      setTimeout(() => { isRemoteAction = false; }, 50);
+    }
+  }
+
+  // Initialize
+  document.addEventListener('DOMContentLoaded', () => {
+    console.log('Shuvan application initialized');
+    generateRoomId();
+  });
+</script>
+<script>
+  // ... (upar ka sara code same rakho)
+
+  // ----------- Voice Chat Functions -----------
+  async function joinVoiceChat() {
+    if (isInVoiceChat) return;
+
+    try {
+      localStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      isInVoiceChat = true;
+
+      joinVoiceBtn.classList.add('hidden');
+      leaveVoiceBtn.classList.remove('hidden');
+      micStatus.classList.remove('hidden');
+
+      // Dusre users ke liye peer connection banayenge
+      socket.emit('join-voice', {
+        roomId: currentRoom,
+        userId: currentUser.id,
+      });
+    } catch (err) {
+      console.error("Mic access denied:", err);
+      alert("Microphone access is required for voice chat.");
+    }
+  }
+
+  function leaveVoiceChat() {
+    if (!isInVoiceChat) return;
+
+    // Mic band karo
+    if (localStream) {
+      localStream.getTracks().forEach(track => track.stop());
+      localStream = null;
+    }
+
+    // Sab peer connections close karo
+    for (let id in peerConnections) {
+      peerConnections[id].close();
+      delete peerConnections[id];
+    }
+
+    isInVoiceChat = false;
+    joinVoiceBtn.classList.remove('hidden');
+    leaveVoiceBtn.classList.add('hidden');
+    micStatus.classList.add('hidden');
+
+    socket.emit('leave-voice', {
+      roomId: currentRoom,
+      userId: currentUser.id,
+    });
+  }
+
+  // ----------- WebRTC Signaling -----------
+  function createPeerConnection(remoteUserId) {
+    const pc = new RTCPeerConnection();
+
+    // Local mic stream add karo
+    if (localStream) {
+      localStream.getTracks().forEach(track => pc.addTrack(track, localStream));
+    }
+
+    // Jab dusre user ki audio aaye to play karo
+    pc.ontrack = (event) => {
+      const audio = document.createElement('audio');
+      audio.srcObject = event.streams[0];
+      audio.autoplay = true;
+      document.body.appendChild(audio);
+    };
+
+    // ICE candidate bhejna
+    pc.onicecandidate = (event) => {
+      if (event.candidate) {
+        socket.emit('voice-signal', {
+          from: currentUser.id,
+          to: remoteUserId,
+          candidate: event.candidate,
+          roomId: currentRoom
+        });
+      }
+    };
+
+    peerConnections[remoteUserId] = pc;
+    return pc;
+  }
+
+  async function handleSignalingData(data) {
+    const from = data.from;
+    let pc = peerConnections[from];
+
+    if (!pc) {
+      pc = createPeerConnection(from);
+    }
+
+    if (data.offer) {
+      await pc.setRemoteDescription(new RTCSessionDescription(data.offer));
+      const answer = await pc.createAnswer();
+      await pc.setLocalDescription(answer);
+      socket.emit('voice-signal', {
+        from: currentUser.id,
+        to: from,
+        answer,
+        roomId: currentRoom
+      });
+    } else if (data.answer) {
+      await pc.setRemoteDescription(new RTCSessionDescription(data.answer));
+    } else if (data.candidate) {
+      try {
+        await pc.addIceCandidate(new RTCIceCandidate(data.candidate));
+      } catch (e) {
+        console.error("ICE candidate error:", e);
+      }
+    }
+  }
+
+  // Jab koi room me voice join kare
+  socket.on('voice-joined', async ({ userId }) => {
+    if (userId === currentUser.id) return;
+
+    const pc = createPeerConnection(userId);
+    const offer = await pc.createOffer();
+    await pc.setLocalDescription(offer);
+
+    socket.emit('voice-signal', {
+      from: currentUser.id,
+      to: userId,
+      offer,
+      roomId: currentRoom
+    });
+  });
+
+  // Jab koi voice leave kare
+  socket.on('voice-left', ({ userId }) => {
+    if (peerConnections[userId]) {
+      peerConnections[userId].close();
+      delete peerConnections[userId];
+    }
+  });
+
+</script>
+<script>
+
+
+// Start Voice Chat
+document.getElementById("startVoiceBtn").addEventListener("click", async () => {
+    localStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+
+    peerConnection = new RTCPeerConnection(config);
+    localStream.getTracks().forEach(track => peerConnection.addTrack(track, localStream));
+
+    peerConnection.ontrack = (event) => {
+        let audio = document.getElementById("remoteAudio");
+        if (!audio) {
+            audio = document.createElement("audio");
+            audio.id = "remoteAudio";
+            audio.autoplay = true;
+            document.body.appendChild(audio);
+        }
+        audio.srcObject = event.streams[0];
+    };
+
+    peerConnection.onicecandidate = (event) => {
+        if (event.candidate) {
+            socket.emit("voice-candidate", event.candidate);
+        }
+    };
+
+    const offer = await peerConnection.createOffer();
+    await peerConnection.setLocalDescription(offer);
+    socket.emit("voice-offer", offer);
+
+    document.getElementById("startVoiceBtn").style.display = "none";
+    document.getElementById("stopVoiceBtn").style.display = "inline-block";
+});
+
+// Stop Voice Chat
+document.getElementById("stopVoiceBtn").addEventListener("click", () => {
+    if (localStream) {
+        localStream.getTracks().forEach(track => track.stop());
+    }
+    if (peerConnection) {
+        peerConnection.close();
+    }
+    document.getElementById("startVoiceBtn").style.display = "inline-block";
+    document.getElementById("stopVoiceBtn").style.display = "none";
+});
+
+// Socket listeners
+socket.on("voice-offer", async (offer) => {
+    peerConnection = new RTCPeerConnection(config);
+    peerConnection.ontrack = (event) => {
+        let audio = document.getElementById("remoteAudio");
+        if (!audio) {
+            audio = document.createElement("audio");
+            audio.id = "remoteAudio";
+            audio.autoplay = true;
+            document.body.appendChild(audio);
+        }
+        audio.srcObject = event.streams[0];
+    };
+
+    peerConnection.onicecandidate = (event) => {
+        if (event.candidate) {
+            socket.emit("voice-candidate", event.candidate);
+        }
+    };
+
+    await peerConnection.setRemoteDescription(new RTCSessionDescription(offer));
+    localStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+    localStream.getTracks().forEach(track => peerConnection.addTrack(track, localStream));
+
+    const answer = await peerConnection.createAnswer();
+    await peerConnection.setLocalDescription(answer);
+    socket.emit("voice-answer", answer);
+});
+
+socket.on("voice-answer", async (answer) => {
+    await peerConnection.setRemoteDescription(new RTCSessionDescription(answer));
+});
+
+socket.on("voice-candidate", async (candidate) => {
+    if (peerConnection) {
+        await peerConnection.addIceCandidate(new RTCIceCandidate(candidate));
+    }
+});
+</script>
+
+
+
+</body>
+</html>
